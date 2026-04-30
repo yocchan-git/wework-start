@@ -52,10 +52,24 @@ wifi-chatwork-notifier を私のmacにセットアップしてください。
    (clone 先のフォルダ名が wework-start になる場合は mv で wifi-chatwork-notifier に変更)
 4. cd して npm install。
 5. .env.example を .env にコピー。
-6. 私に以下の2つだけ質問して .env に書き込む:
-   - CHATWORK_API_TOKEN: Chatwork APIトークン
-     （未取得なら https://www.chatwork.com/service/packages/chatwork/subpackages/api/token.php を案内）
-   - CHATWORK_NOTIFY_ROOM_ID: 通知先ルームID（ChatworkのルームURL末尾の数字）
+6. .env に以下を書き込む。
+   6-1. CHATWORK_API_TOKEN
+        - まず私にこう聞く: 「他のプロジェクトの .env や Claude Code の MCP 設定で
+          すでに Chatwork API トークンを使っている場合、それを再利用しても
+          良いですか？ (探してOKなら『はい』、新規取得したいなら『新規』と
+          答えてください)」
+        - 「はい」なら以下を順に検索し、見つかったトークンの**最初4文字だけ**
+          表示して「これを使いますか？」と確認する (機密なので全文は表示しない):
+            a) ~/.claude.json と ~/.claude/ 配下の MCP 設定 (chatwork 関連の
+               env / config に CHATWORK_API_TOKEN や X-ChatWorkToken がある)
+            b) ~/workspace 配下の .env / .env.local (CHATWORK_API_TOKEN= 行)
+            c) ~/.zshrc / ~/.bash_profile / ~/.profile の export CHATWORK_API_TOKEN
+        - 候補が複数あれば一覧で提示して選んでもらう。
+        - 「新規」または見つからなかった場合は
+          https://www.chatwork.com/service/packages/chatwork/subpackages/api/token.php
+          を案内し、発行後の文字列を私に渡してもらう。
+   6-2. CHATWORK_NOTIFY_ROOM_ID
+        - 「通知先のChatworkルームIDを教えてください (ルームURLの末尾の数字)」と質問。
    TARGET_SSID / TARGET_DNS_DOMAIN は .env.example のデフォルト
    (WeWorkWiFi / wework.com) のまま触らないこと。質問もしない。
 7. `chmod +x bin/run.sh` で wrapper スクリプトに実行権限を付ける。
