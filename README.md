@@ -31,11 +31,12 @@ wifi-chatwork-notifier をセットアップしてください。手順:
    (フォルダ名が wework-start になるなら mv で wifi-chatwork-notifier に変更)
 2. cd して npm install。
 3. .env.example を .env にコピー。
-4. 私に以下を質問して .env に書き込む:
+4. 私に以下の2つだけ質問して .env に書き込む:
    - CHATWORK_API_TOKEN: Chatwork APIトークン
      （未取得なら https://www.chatwork.com/service/packages/chatwork/subpackages/api/token.php を案内）
    - CHATWORK_NOTIFY_ROOM_ID: 通知先ルームID（ChatworkのルームURL末尾の数字）
-   TARGET_SSID と TARGET_DNS_DOMAIN は WeWork 想定のデフォルトのままで良いか確認。
+   TARGET_SSID / TARGET_DNS_DOMAIN は .env.example のデフォルト
+   (WeWorkWiFi / wework.com) のまま触らないこと。質問もしない。
 5. launchd/local.wifi-chatwork-notifier.plist を読み、`__PROJECT_DIR__` を
    実プロジェクトの絶対パスに置換したうえで ~/Library/LaunchAgents/ にコピー。
 6. plutil -lint で文法チェック後、launchctl bootstrap gui/$(id -u) で登録。
