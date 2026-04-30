@@ -10,7 +10,7 @@ import {
 } from "./chatwork.js";
 
 // 通知文言は環境ごとに変えにくいのでソース側に固定。変えたい人はここを編集してください。
-const CHATWORK_MESSAGE = "✅ WeWorkに到着しました！作業開始します。";
+const CHATWORK_MESSAGE = "weします(gogo)";
 
 const STATE_FILE =
   process.env.STATE_FILE ??
