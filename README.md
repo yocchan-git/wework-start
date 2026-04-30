@@ -21,32 +21,42 @@
 
 ### A. Claude Code に丸投げする場合（推奨）
 
-ターミナルでセットアップしたいディレクトリの親まで `cd` した状態で、Claude Code に以下のプロンプトをそのまま貼り付けてください。
+Claude Code をどこで起動していてもOK。以下のプロンプトをそのまま貼り付けてください。
+インストール先のディレクトリも Claude Code が提案・確認してから作ります。
 
 ```
-wifi-chatwork-notifier をセットアップしてください。手順:
+wifi-chatwork-notifier を私のmacにセットアップしてください。
+私はターミナル/Git/Node.jsの操作にあまり慣れていない前提でお願いします。
 
-1. このディレクトリの直下に `wifi-chatwork-notifier/` を作って、
-   そこに https://github.com/yocchan-git/wework-start.git を git clone。
-   (フォルダ名が wework-start になるなら mv で wifi-chatwork-notifier に変更)
-2. cd して npm install。
-3. .env.example を .env にコピー。
-4. 私に以下の2つだけ質問して .env に書き込む:
+手順:
+
+1. インストール先ディレクトリを決める。
+   - デフォルト案として `~/workspace/wifi-chatwork-notifier` を提示し、
+     「ここに作ってよいか／別のパスにしたいか」を必ず私に質問する。
+   - 私の回答に従ってディレクトリを作成する。
+     (親ディレクトリが無ければ `mkdir -p` で作って良い)
+2. そのディレクトリに https://github.com/yocchan-git/wework-start.git を git clone。
+   (clone 先のフォルダ名が wework-start になる場合は mv で wifi-chatwork-notifier に変更)
+3. cd して npm install。
+4. .env.example を .env にコピー。
+5. 私に以下の2つだけ質問して .env に書き込む:
    - CHATWORK_API_TOKEN: Chatwork APIトークン
      （未取得なら https://www.chatwork.com/service/packages/chatwork/subpackages/api/token.php を案内）
    - CHATWORK_NOTIFY_ROOM_ID: 通知先ルームID（ChatworkのルームURL末尾の数字）
    TARGET_SSID / TARGET_DNS_DOMAIN は .env.example のデフォルト
    (WeWorkWiFi / wework.com) のまま触らないこと。質問もしない。
-5. launchd/local.wifi-chatwork-notifier.plist を読み、`__PROJECT_DIR__` を
+6. launchd/local.wifi-chatwork-notifier.plist を読み、`__PROJECT_DIR__` を
    実プロジェクトの絶対パスに置換したうえで ~/Library/LaunchAgents/ にコピー。
-6. plutil -lint で文法チェック後、launchctl bootstrap gui/$(id -u) で登録。
-7. mkdir -p logs して、npm start を一度実行し、
+7. plutil -lint で文法チェック後、launchctl bootstrap gui/$(id -u) で登録。
+8. mkdir -p logs して、npm start を一度実行し、
    - SSIDかDNSドメインがターゲットと一致していれば Chatwork に通知が届くこと
    - 続けてもう一度 npm start を実行し、no edge で重複送信されないこと
    を確認。Chatwork APIエラーが出た場合は .env のトークン/ルームIDを見直す。
-8. launchctl print gui/$(id -u)/local.wifi-chatwork-notifier で
+9. launchctl print gui/$(id -u)/local.wifi-chatwork-notifier で
    event triggers に network_change が登録されていることを確認。
 
+各ステップで何をしているかを一言ずつ私に説明しながら進めてください。
+途中で詰まったら勝手に進めず、何が起きていてどうしたいかを私に聞いてください。
 セットアップ後、何を確認すれば動作確認完了か教えてください。
 ```
 
