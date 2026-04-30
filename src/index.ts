@@ -2,7 +2,12 @@ import "dotenv/config";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { getCurrentSSID, getCurrentDNSDomain } from "./wifi.js";
-import { postMessage } from "./chatwork.js";
+import {
+  postMessage,
+  getMyAccountId,
+  getRoomMessages,
+  type ChatworkConfig,
+} from "./chatwork.js";
 
 // 通知文言は環境ごとに変えにくいのでソース側に固定。変えたい人はここを編集してください。
 const CHATWORK_MESSAGE = "✅ WeWorkに到着しました！作業開始します。";
@@ -32,6 +37,41 @@ function readLastState(): string | null {
 function writeLastState(value: string | null): void {
   mkdirSync(dirname(STATE_FILE), { recursive: true });
   writeFileSync(STATE_FILE, value ?? "", "utf8");
+}
+
+function startOfTodayUnix(): number {
+  // ローカルタイム（JSTなら 00:00 JST）の Unix 秒。
+  const now = new Date();
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.floor(midnight.getTime() / 1000);
+}
+
+// 状態ファイル/launchd Throttle に加えての3層目: Chatwork ルームを直接見て、
+// 今日自分が同じ文言を投稿していないか確認する。API失敗時は false (重複なし扱い)
+// を返して既存の保護に任せる。
+async function alreadySentSameMessageToday(
+  config: ChatworkConfig,
+  message: string,
+): Promise<boolean> {
+  try {
+    const [myId, messages] = await Promise.all([
+      getMyAccountId(config),
+      getRoomMessages(config),
+    ]);
+    const since = startOfTodayUnix();
+    return messages.some(
+      (m) =>
+        m.account.account_id === myId &&
+        m.send_time >= since &&
+        m.body === message,
+    );
+  } catch (err) {
+    console.warn(
+      "[dup-check] Chatwork API check failed; falling back to local dedup:",
+      err,
+    );
+    return false;
+  }
 }
 
 // 「対象ネットワークに接続している」と見なすかを判定する。
@@ -72,9 +112,15 @@ async function main() {
   );
 
   if (currentState === "on-target" && lastState !== "on-target") {
-    console.log("[run] edge: connected to target; posting to Chatwork...");
-    await postMessage({ token, roomId }, message);
-    console.log("[run] sent");
+    if (await alreadySentSameMessageToday({ token, roomId }, message)) {
+      console.log(
+        "[run] edge detected, but same message already posted today; skipping",
+      );
+    } else {
+      console.log("[run] edge: connected to target; posting to Chatwork...");
+      await postMessage({ token, roomId }, message);
+      console.log("[run] sent");
+    }
   } else {
     console.log("[run] no edge; skipping notification");
   }
