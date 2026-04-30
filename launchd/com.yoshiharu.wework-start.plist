@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.yoshiharu.wework-start</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-lc</string>
+        <string>cd /Users/yoshiharu/workspace/YoshiharuTakenaka/wework-start &amp;&amp; npm start</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/yoshiharu/workspace/YoshiharuTakenaka/wework-start</string>
+
+    <!-- ネットワーク変化のシステム通知に反応して発火する。
+         ポーリングも固定スケジュールも使わない、純イベント駆動。 -->
+    <key>LaunchEvents</key>
+    <dict>
+        <key>com.apple.notifyd.matching</key>
+        <dict>
+            <key>com.apple.system.config.network_change</key>
+            <dict>
+                <key>Notification</key>
+                <string>com.apple.system.config.network_change</string>
+            </dict>
+        </dict>
+    </dict>
+
+    <!-- 起動直後の発火は不要 -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <!-- 連続発火を抑制（最低 30 秒は再起動しない） -->
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/yoshiharu/workspace/YoshiharuTakenaka/wework-start/logs/stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/yoshiharu/workspace/YoshiharuTakenaka/wework-start/logs/stderr.log</string>
+</dict>
+</plist>

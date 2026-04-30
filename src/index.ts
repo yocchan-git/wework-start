@@ -1,6 +1,12 @@
 import "dotenv/config";
-import { watchSSID } from "./wifi.js";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { dirname } from "node:path";
+import { getCurrentSSID, getCurrentDNSDomain } from "./wifi.js";
 import { postMessage } from "./chatwork.js";
+
+const STATE_FILE =
+  process.env.STATE_FILE ??
+  `${process.cwd()}/.state/last-network`;
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -11,28 +17,69 @@ function requireEnv(name: string): string {
   return value;
 }
 
-const targetSSID = requireEnv("TARGET_SSID");
-const token = requireEnv("CHATWORK_API_TOKEN");
-const roomId = requireEnv("CHATWORK_NOTIFY_ROOM_ID");
-const message = requireEnv("CHATWORK_MESSAGE");
+function readLastState(): string | null {
+  try {
+    const v = readFileSync(STATE_FILE, "utf8").trim();
+    return v.length > 0 ? v : null;
+  } catch {
+    return null;
+  }
+}
 
-console.log(`[boot] watching for SSID: ${targetSSID}`);
-console.log(`[boot] chatwork room: ${roomId}`);
+function writeLastState(value: string | null): void {
+  mkdirSync(dirname(STATE_FILE), { recursive: true });
+  writeFileSync(STATE_FILE, value ?? "", "utf8");
+}
 
-const handle = watchSSID({
-  targetSSID,
-  onConnect: async (ssid) => {
-    console.log(`[notify] connected to ${ssid}, posting to Chatwork...`);
+// 「対象ネットワークに接続している」と見なすかを判定する。
+// SSID 一致を優先し、SSID が取れない/redacted の環境では DNS ドメイン一致をフォールバック。
+function isOnTargetNetwork(args: {
+  ssid: string | null;
+  dnsDomain: string | null;
+  targetSSID: string;
+  targetDNSDomain: string | null;
+}): boolean {
+  const { ssid, dnsDomain, targetSSID, targetDNSDomain } = args;
+  if (ssid && ssid !== "<redacted>" && ssid === targetSSID) return true;
+  if (targetDNSDomain && dnsDomain && dnsDomain === targetDNSDomain) return true;
+  return false;
+}
+
+async function main() {
+  const targetSSID = requireEnv("TARGET_SSID");
+  const targetDNSDomain = process.env.TARGET_DNS_DOMAIN?.trim() || null;
+  const token = requireEnv("CHATWORK_API_TOKEN");
+  const roomId = requireEnv("CHATWORK_NOTIFY_ROOM_ID");
+  const message = requireEnv("CHATWORK_MESSAGE");
+
+  const ssid = getCurrentSSID();
+  const dnsDomain = getCurrentDNSDomain();
+  const onTarget = isOnTargetNetwork({ ssid, dnsDomain, targetSSID, targetDNSDomain });
+
+  // 状態としては target に居るか居ないかの 2 値だけ保持する。
+  // ssid 文字列を保存しないことで、redacted 環境と非 redacted 環境を行き来しても誤発火しない。
+  const lastState = readLastState();
+  const currentState = onTarget ? "on-target" : "off-target";
+
+  const now = new Date().toISOString();
+  console.log(
+    `[run] ${now} ssid=${ssid ?? "(none)"} dns=${dnsDomain ?? "(none)"} ` +
+      `target_ssid=${targetSSID} target_dns=${targetDNSDomain ?? "(none)"} ` +
+      `current=${currentState} last=${lastState ?? "(none)"}`,
+  );
+
+  if (currentState === "on-target" && lastState !== "on-target") {
+    console.log("[run] edge: connected to target; posting to Chatwork...");
     await postMessage({ token, roomId }, message);
-    console.log("[notify] sent");
-  },
+    console.log("[run] sent");
+  } else {
+    console.log("[run] no edge; skipping notification");
+  }
+
+  writeLastState(currentState);
+}
+
+main().catch((err) => {
+  console.error("[run] error:", err);
+  process.exit(1);
 });
-
-const shutdown = (signal: NodeJS.Signals) => {
-  console.log(`[shutdown] received ${signal}, stopping...`);
-  handle.stop();
-  process.exit(0);
-};
-
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
