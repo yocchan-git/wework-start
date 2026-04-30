@@ -12,6 +12,11 @@ import {
 // 通知文言は環境ごとに変えにくいのでソース側に固定。変えたい人はここを編集してください。
 const CHATWORK_MESSAGE = "weします(gogo)";
 
+// 通知を送る時間帯 (24時間表記、ローカルタイム)。
+// 9:00 <= hour < 20:00 の間だけ送信。深夜帯 (20:00-9:00) はネットワーク変化があっても通知しない。
+const NOTIFY_HOUR_START = 9;
+const NOTIFY_HOUR_END = 20;
+
 const STATE_FILE =
   process.env.STATE_FILE ??
   `${process.cwd()}/.state/state.json`;
@@ -51,6 +56,11 @@ function readState(): State {
 function writeState(state: State): void {
   mkdirSync(dirname(STATE_FILE), { recursive: true });
   writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), "utf8");
+}
+
+function isWithinNotifyHours(): boolean {
+  const hour = new Date().getHours();
+  return hour >= NOTIFY_HOUR_START && hour < NOTIFY_HOUR_END;
 }
 
 function todayLocalDate(): string {
@@ -145,6 +155,11 @@ async function main() {
 
   if (!isEdge) {
     console.log("[run] no edge; skipping notification");
+  } else if (!isWithinNotifyHours()) {
+    console.log(
+      `[run] edge but outside notify hours ` +
+        `(${NOTIFY_HOUR_START}:00-${NOTIFY_HOUR_END}:00); skipping`,
+    );
   } else if (alreadySentTodayLocal) {
     console.log("[run] edge but already sent today (local); skipping");
   } else if (await alreadySentTodayViaApi({ token, roomId }, message)) {
