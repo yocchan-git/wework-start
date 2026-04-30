@@ -1,19 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  これはテンプレートです。 __PROJECT_DIR__ を実パス
+  (例: /Users/yourname/workspace/wifi-chatwork-notifier) に置換してから
+  ~/Library/LaunchAgents/local.wifi-chatwork-notifier.plist にコピーしてください。
+-->
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.yoshiharu.wework-start</string>
+    <string>local.wifi-chatwork-notifier</string>
 
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
         <string>-lc</string>
-        <string>cd /Users/yoshiharu/workspace/YoshiharuTakenaka/wework-start &amp;&amp; npm start</string>
+        <string>cd __PROJECT_DIR__ &amp;&amp; npm start</string>
     </array>
 
     <key>WorkingDirectory</key>
-    <string>/Users/yoshiharu/workspace/YoshiharuTakenaka/wework-start</string>
+    <string>__PROJECT_DIR__</string>
 
     <!-- ネットワーク変化のシステム通知に反応して発火する。
          ポーリングも固定スケジュールも使わない、純イベント駆動。 -->
@@ -38,9 +43,9 @@
     <integer>30</integer>
 
     <key>StandardOutPath</key>
-    <string>/Users/yoshiharu/workspace/YoshiharuTakenaka/wework-start/logs/stdout.log</string>
+    <string>__PROJECT_DIR__/logs/stdout.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Users/yoshiharu/workspace/YoshiharuTakenaka/wework-start/logs/stderr.log</string>
+    <string>__PROJECT_DIR__/logs/stderr.log</string>
 </dict>
 </plist>

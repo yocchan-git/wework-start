@@ -4,6 +4,9 @@ import { dirname } from "node:path";
 import { getCurrentSSID, getCurrentDNSDomain } from "./wifi.js";
 import { postMessage } from "./chatwork.js";
 
+// 通知文言は環境ごとに変えにくいのでソース側に固定。変えたい人はここを編集してください。
+const CHATWORK_MESSAGE = "✅ WeWorkに到着しました！作業開始します。";
+
 const STATE_FILE =
   process.env.STATE_FILE ??
   `${process.cwd()}/.state/last-network`;
@@ -50,7 +53,7 @@ async function main() {
   const targetDNSDomain = process.env.TARGET_DNS_DOMAIN?.trim() || null;
   const token = requireEnv("CHATWORK_API_TOKEN");
   const roomId = requireEnv("CHATWORK_NOTIFY_ROOM_ID");
-  const message = requireEnv("CHATWORK_MESSAGE");
+  const message = CHATWORK_MESSAGE;
 
   const ssid = getCurrentSSID();
   const dnsDomain = getCurrentDNSDomain();
