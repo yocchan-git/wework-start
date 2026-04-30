@@ -58,14 +58,21 @@ wifi-chatwork-notifier を私のmacにセットアップしてください。
    - CHATWORK_NOTIFY_ROOM_ID: 通知先ルームID（ChatworkのルームURL末尾の数字）
    TARGET_SSID / TARGET_DNS_DOMAIN は .env.example のデフォルト
    (WeWorkWiFi / wework.com) のまま触らないこと。質問もしない。
-7. launchd/local.wifi-chatwork-notifier.plist を読み、`__PROJECT_DIR__` を
+7. `chmod +x bin/run.sh` で wrapper スクリプトに実行権限を付ける。
+   (このスクリプトが launchd 起動時に nvm / nodenv / Homebrew のパスを
+   解決してから npm start を呼ぶ。launchd は .zshrc を読まないため必須)
+8. launchd/local.wifi-chatwork-notifier.plist を読み、`__PROJECT_DIR__` を
    実プロジェクトの絶対パスに置換したうえで ~/Library/LaunchAgents/ にコピー。
-8. plutil -lint で文法チェック後、launchctl bootstrap gui/$(id -u) で登録。
-9. mkdir -p logs して、npm start を一度実行し、
-   - SSIDかDNSドメインがターゲットと一致していれば Chatwork に通知が届くこと
-   - 続けてもう一度 npm start を実行し、no edge で重複送信されないこと
-   を確認。Chatwork APIエラーが出た場合は .env のトークン/ルームIDを見直す。
-10. launchctl print gui/$(id -u)/local.wifi-chatwork-notifier で
+9. plutil -lint で文法チェック後、launchctl bootstrap gui/$(id -u) で登録。
+10. mkdir -p logs して、npm start を一度実行し、
+    - SSIDかDNSドメインがターゲットと一致していれば Chatwork に通知が届くこと
+    - 続けてもう一度 npm start を実行し、no edge で重複送信されないこと
+    を確認。Chatwork APIエラーが出た場合は .env のトークン/ルームIDを見直す。
+11. `launchctl kickstart gui/$(id -u)/local.wifi-chatwork-notifier` を1回実行し、
+    logs/stdout.log の先頭に [wrapper] node: ... [wrapper] npm: ... が
+    表示されていることを確認 (ここが (not found) になっていたら nvm/nodenv の
+    検出に失敗しているので bin/run.sh を見直す)。
+12. launchctl print gui/$(id -u)/local.wifi-chatwork-notifier で
     event triggers に network_change が登録されていることを確認。
 
 各ステップで何をしているかを一言ずつ私に説明しながら進めてください。
@@ -90,23 +97,42 @@ cp .env.example .env
 # .env を編集して CHATWORK_API_TOKEN と CHATWORK_NOTIFY_ROOM_ID を埋める。
 # TARGET_SSID / TARGET_DNS_DOMAIN は接続先 Wi-Fi に合わせて（WeWorkはデフォルトのままでOK）。
 
-# 4. launchd plist をテンプレートから生成
+# 4. wrapper script に実行権限を付ける
+#    (launchd は .zshrc を読まないので、ここで nvm/nodenv/Homebrew のパスを
+#    再構築してから npm start する。clone 直後だと chmod が落ちる場合あり)
+chmod +x bin/run.sh
+
+# 5. launchd plist をテンプレートから生成
 PROJECT_DIR=$(pwd)
 mkdir -p logs
 sed "s|__PROJECT_DIR__|$PROJECT_DIR|g" launchd/local.wifi-chatwork-notifier.plist \
   > ~/Library/LaunchAgents/local.wifi-chatwork-notifier.plist
 plutil -lint ~/Library/LaunchAgents/local.wifi-chatwork-notifier.plist
 
-# 5. 登録（次回ログインから自動で network_change を購読する）
+# 6. 登録（次回ログインから自動で network_change を購読する）
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/local.wifi-chatwork-notifier.plist
 
-# 6. 動作確認
-#    対象ネットワークに接続中ならその場で通知が送られる
+# 7. 動作確認 (対象ネットワークに接続中ならその場で通知が送られる)
 npm start
 
-# 7. 状態確認
+# 8. launchd 経由で wrapper が node/npm を解決できているかチェック
+launchctl kickstart gui/$(id -u)/local.wifi-chatwork-notifier
+sleep 3
+head -3 logs/stdout.log
+# → [wrapper] node: /path/... と [wrapper] npm: /path/... が出ていればOK。
+#   (not found) なら bin/run.sh のパス検出条件を見直す。
+
+# 9. 状態確認
 launchctl print gui/$(id -u)/local.wifi-chatwork-notifier | grep -A 8 "event triggers"
 ```
+
+#### nvm/nodenv 以外の Node 管理ツールを使っている場合
+
+`bin/run.sh` は nvm / nodenv / Homebrew (Apple Silicon と Intel 両方) しか
+カバーしていません。volta / asdf / fnm 等を使っている場合は、`bin/run.sh`
+の該当ブロックを参考にしてご自身の Node 管理ツール用の初期化を追記してください。
+切り分けは `launchctl kickstart` 後の `logs/stdout.log` の `[wrapper] node:`
+行を見れば分かります。
 
 ### アンインストール
 

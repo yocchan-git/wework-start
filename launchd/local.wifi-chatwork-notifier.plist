@@ -10,11 +10,13 @@
     <key>Label</key>
     <string>local.wifi-chatwork-notifier</string>
 
+    <!-- bin/run.sh が nvm / nodenv / Homebrew のパスを設定してから npm start する。
+         launchd は .zshrc / .bash_profile を読まないため、wrapper 経由で
+         node/npm を解決するこのアプローチが必須。 -->
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>-lc</string>
-        <string>cd __PROJECT_DIR__ &amp;&amp; npm start</string>
+        <string>__PROJECT_DIR__/bin/run.sh</string>
     </array>
 
     <key>WorkingDirectory</key>
