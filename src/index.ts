@@ -2,19 +2,23 @@ import "dotenv/config";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { getCurrentSSID, getCurrentDNSDomain } from "./wifi.js";
-import {
-  postMessage,
-  getMyAccountId,
-  getRoomMessages,
-  type ChatworkConfig,
-} from "./chatwork.js";
+import { postMessage } from "./chatwork.js";
 
 // 通知文言は環境ごとに変えにくいのでソース側に固定。変えたい人はここを編集してください。
 const CHATWORK_MESSAGE = "weします(gogo)";
 
 const STATE_FILE =
   process.env.STATE_FILE ??
-  `${process.cwd()}/.state/last-network`;
+  `${process.cwd()}/.state/state.json`;
+
+type NetworkState = "on-target" | "off-target";
+
+type State = {
+  network: NetworkState;
+  lastSentDate: string | null; // "YYYY-MM-DD" ローカルタイム
+};
+
+const DEFAULT_STATE: State = { network: "off-target", lastSentDate: null };
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -25,53 +29,31 @@ function requireEnv(name: string): string {
   return value;
 }
 
-function readLastState(): string | null {
+function readState(): State {
   try {
-    const v = readFileSync(STATE_FILE, "utf8").trim();
-    return v.length > 0 ? v : null;
+    const raw = readFileSync(STATE_FILE, "utf8");
+    const parsed = JSON.parse(raw) as Partial<State>;
+    return {
+      network: parsed.network === "on-target" ? "on-target" : "off-target",
+      lastSentDate:
+        typeof parsed.lastSentDate === "string" ? parsed.lastSentDate : null,
+    };
   } catch {
-    return null;
+    return { ...DEFAULT_STATE };
   }
 }
 
-function writeLastState(value: string | null): void {
+function writeState(state: State): void {
   mkdirSync(dirname(STATE_FILE), { recursive: true });
-  writeFileSync(STATE_FILE, value ?? "", "utf8");
+  writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), "utf8");
 }
 
-function startOfTodayUnix(): number {
-  // ローカルタイム（JSTなら 00:00 JST）の Unix 秒。
-  const now = new Date();
-  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  return Math.floor(midnight.getTime() / 1000);
-}
-
-// 状態ファイル/launchd Throttle に加えての3層目: Chatwork ルームを直接見て、
-// 今日自分が同じ文言を投稿していないか確認する。API失敗時は false (重複なし扱い)
-// を返して既存の保護に任せる。
-async function alreadySentSameMessageToday(
-  config: ChatworkConfig,
-  message: string,
-): Promise<boolean> {
-  try {
-    const [myId, messages] = await Promise.all([
-      getMyAccountId(config),
-      getRoomMessages(config),
-    ]);
-    const since = startOfTodayUnix();
-    return messages.some(
-      (m) =>
-        m.account.account_id === myId &&
-        m.send_time >= since &&
-        m.body === message,
-    );
-  } catch (err) {
-    console.warn(
-      "[dup-check] Chatwork API check failed; falling back to local dedup:",
-      err,
-    );
-    return false;
-  }
+function todayLocalDate(): string {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 // 「対象ネットワークに接続している」と見なすかを判定する。
@@ -99,33 +81,37 @@ async function main() {
   const dnsDomain = getCurrentDNSDomain();
   const onTarget = isOnTargetNetwork({ ssid, dnsDomain, targetSSID, targetDNSDomain });
 
-  // 状態としては target に居るか居ないかの 2 値だけ保持する。
-  // ssid 文字列を保存しないことで、redacted 環境と非 redacted 環境を行き来しても誤発火しない。
-  const lastState = readLastState();
-  const currentState = onTarget ? "on-target" : "off-target";
+  const prev = readState();
+  const today = todayLocalDate();
+  const currentNetwork: NetworkState = onTarget ? "on-target" : "off-target";
 
   const now = new Date().toISOString();
   console.log(
     `[run] ${now} ssid=${ssid ?? "(none)"} dns=${dnsDomain ?? "(none)"} ` +
       `target_ssid=${targetSSID} target_dns=${targetDNSDomain ?? "(none)"} ` +
-      `current=${currentState} last=${lastState ?? "(none)"}`,
+      `current=${currentNetwork} last=${prev.network} ` +
+      `last_sent=${prev.lastSentDate ?? "(none)"} today=${today}`,
   );
 
-  if (currentState === "on-target" && lastState !== "on-target") {
-    if (await alreadySentSameMessageToday({ token, roomId }, message)) {
-      console.log(
-        "[run] edge detected, but same message already posted today; skipping",
-      );
-    } else {
-      console.log("[run] edge: connected to target; posting to Chatwork...");
-      await postMessage({ token, roomId }, message);
-      console.log("[run] sent");
-    }
+  // 送信条件: (off-target → on-target のエッジ) かつ (今日まだ送っていない)
+  // → 1日1回だけ。お昼抜けして戻ってきても再送されない。
+  const isEdge = currentNetwork === "on-target" && prev.network !== "on-target";
+  const alreadySentToday = prev.lastSentDate === today;
+
+  let nextLastSentDate = prev.lastSentDate;
+
+  if (isEdge && !alreadySentToday) {
+    console.log("[run] edge & not yet sent today; posting to Chatwork...");
+    await postMessage({ token, roomId }, message);
+    nextLastSentDate = today;
+    console.log("[run] sent");
+  } else if (isEdge && alreadySentToday) {
+    console.log("[run] edge but already sent today; skipping");
   } else {
     console.log("[run] no edge; skipping notification");
   }
 
-  writeLastState(currentState);
+  writeState({ network: currentNetwork, lastSentDate: nextLastSentDate });
 }
 
 main().catch((err) => {
