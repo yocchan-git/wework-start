@@ -2,7 +2,12 @@ import "dotenv/config";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { getCurrentSSID, getCurrentDNSDomain } from "./wifi.js";
-import { postMessage } from "./chatwork.js";
+import {
+  postMessage,
+  getMyAccountId,
+  getRoomMessages,
+  type ChatworkConfig,
+} from "./chatwork.js";
 
 // 通知文言は環境ごとに変えにくいのでソース側に固定。変えたい人はここを編集してください。
 const CHATWORK_MESSAGE = "weします(gogo)";
@@ -56,6 +61,41 @@ function todayLocalDate(): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function startOfTodayUnix(): number {
+  // ローカルタイム 0 時の Unix 秒。
+  const d = new Date();
+  const midnight = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  return Math.floor(midnight.getTime() / 1000);
+}
+
+// ローカル state ファイルが破損/削除されている場合や別端末から送られた場合の
+// 二重防御として、Chatwork API 側でも当日の同文言投稿をチェックする。
+// API失敗時は false を返してローカル判定 (lastSentDate) に任せる。
+async function alreadySentTodayViaApi(
+  config: ChatworkConfig,
+  message: string,
+): Promise<boolean> {
+  try {
+    const [myId, messages] = await Promise.all([
+      getMyAccountId(config),
+      getRoomMessages(config),
+    ]);
+    const since = startOfTodayUnix();
+    return messages.some(
+      (m) =>
+        m.account.account_id === myId &&
+        m.send_time >= since &&
+        m.body === message,
+    );
+  } catch (err) {
+    console.warn(
+      "[dup-check] Chatwork API check failed; falling back to local state:",
+      err,
+    );
+    return false;
+  }
+}
+
 // 「対象ネットワークに接続している」と見なすかを判定する。
 // SSID 一致を優先し、SSID が取れない/redacted の環境では DNS ドメイン一致をフォールバック。
 function isOnTargetNetwork(args: {
@@ -93,22 +133,30 @@ async function main() {
       `last_sent=${prev.lastSentDate ?? "(none)"} today=${today}`,
   );
 
-  // 送信条件: (off-target → on-target のエッジ) かつ (今日まだ送っていない)
-  // → 1日1回だけ。お昼抜けして戻ってきても再送されない。
+  // 送信条件: (off-target → on-target のエッジ) かつ
+  //          (ローカル state でも当日未送信) かつ
+  //          (Chatwork API でも当日同文言の自分の投稿なし)
+  // 1日1回だけ。お昼抜けして戻ってきても再送されない。
+  // ローカル state が消えた/別端末から送られた場合の保険として API 側もチェック。
   const isEdge = currentNetwork === "on-target" && prev.network !== "on-target";
-  const alreadySentToday = prev.lastSentDate === today;
+  const alreadySentTodayLocal = prev.lastSentDate === today;
 
   let nextLastSentDate = prev.lastSentDate;
 
-  if (isEdge && !alreadySentToday) {
-    console.log("[run] edge & not yet sent today; posting to Chatwork...");
+  if (!isEdge) {
+    console.log("[run] no edge; skipping notification");
+  } else if (alreadySentTodayLocal) {
+    console.log("[run] edge but already sent today (local); skipping");
+  } else if (await alreadySentTodayViaApi({ token, roomId }, message)) {
+    console.log(
+      "[run] edge but Chatwork already has today's same message; skipping (syncing local state)",
+    );
+    nextLastSentDate = today;
+  } else {
+    console.log("[run] edge & dedup-clear; posting to Chatwork...");
     await postMessage({ token, roomId }, message);
     nextLastSentDate = today;
     console.log("[run] sent");
-  } else if (isEdge && alreadySentToday) {
-    console.log("[run] edge but already sent today; skipping");
-  } else {
-    console.log("[run] no edge; skipping notification");
   }
 
   writeState({ network: currentNetwork, lastSentDate: nextLastSentDate });
