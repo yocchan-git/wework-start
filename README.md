@@ -30,30 +30,43 @@ wifi-chatwork-notifier を私のmacにセットアップしてください。
 
 手順:
 
-1. インストール先ディレクトリを決める。
+1. 事前チェック: Node.js / npm が入っているか確認する。
+   - `which node` と `which npm` を実行。両方見つかれば次のステップへ。
+   - 片方でも見つからない場合は、まず私にこう声かけしてから入れる:
+     「Node.js（npmが同梱されています）がまだ入っていないようなので、これから入れますね。
+      ※よっちゃんより: npm は Node.js の公式パッケージマネージャで、世界中の開発現場で
+      広く使われている安全なツールです。安心して入れて大丈夫ですよ。」
+   - インストール方法は以下の優先順で判断:
+     a) `which brew` で Homebrew が入っていれば `brew install node`
+     b) Homebrew が無い場合、私が CLI 操作に不慣れであれば
+        https://nodejs.org/ja/download の「macOS Installer (.pkg)」をブラウザで開く
+        よう案内し、ダウンロード→ダブルクリックで完了するまで待つ。
+   - インストール後 `node --version` `npm --version` で確認。
+     反映されない場合はターミナルを開き直すよう私に依頼。
+2. インストール先ディレクトリを決める。
    - デフォルト案として `~/workspace/wifi-chatwork-notifier` を提示し、
      「ここに作ってよいか／別のパスにしたいか」を必ず私に質問する。
    - 私の回答に従ってディレクトリを作成する。
      (親ディレクトリが無ければ `mkdir -p` で作って良い)
-2. そのディレクトリに https://github.com/yocchan-git/wework-start.git を git clone。
+3. そのディレクトリに https://github.com/yocchan-git/wework-start.git を git clone。
    (clone 先のフォルダ名が wework-start になる場合は mv で wifi-chatwork-notifier に変更)
-3. cd して npm install。
-4. .env.example を .env にコピー。
-5. 私に以下の2つだけ質問して .env に書き込む:
+4. cd して npm install。
+5. .env.example を .env にコピー。
+6. 私に以下の2つだけ質問して .env に書き込む:
    - CHATWORK_API_TOKEN: Chatwork APIトークン
      （未取得なら https://www.chatwork.com/service/packages/chatwork/subpackages/api/token.php を案内）
    - CHATWORK_NOTIFY_ROOM_ID: 通知先ルームID（ChatworkのルームURL末尾の数字）
    TARGET_SSID / TARGET_DNS_DOMAIN は .env.example のデフォルト
    (WeWorkWiFi / wework.com) のまま触らないこと。質問もしない。
-6. launchd/local.wifi-chatwork-notifier.plist を読み、`__PROJECT_DIR__` を
+7. launchd/local.wifi-chatwork-notifier.plist を読み、`__PROJECT_DIR__` を
    実プロジェクトの絶対パスに置換したうえで ~/Library/LaunchAgents/ にコピー。
-7. plutil -lint で文法チェック後、launchctl bootstrap gui/$(id -u) で登録。
-8. mkdir -p logs して、npm start を一度実行し、
+8. plutil -lint で文法チェック後、launchctl bootstrap gui/$(id -u) で登録。
+9. mkdir -p logs して、npm start を一度実行し、
    - SSIDかDNSドメインがターゲットと一致していれば Chatwork に通知が届くこと
    - 続けてもう一度 npm start を実行し、no edge で重複送信されないこと
    を確認。Chatwork APIエラーが出た場合は .env のトークン/ルームIDを見直す。
-9. launchctl print gui/$(id -u)/local.wifi-chatwork-notifier で
-   event triggers に network_change が登録されていることを確認。
+10. launchctl print gui/$(id -u)/local.wifi-chatwork-notifier で
+    event triggers に network_change が登録されていることを確認。
 
 各ステップで何をしているかを一言ずつ私に説明しながら進めてください。
 途中で詰まったら勝手に進めず、何が起きていてどうしたいかを私に聞いてください。
